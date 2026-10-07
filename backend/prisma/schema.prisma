@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  TUTOR
+}
+
+enum Level {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum RequestStatus {
+  MATCHED
+  NO_MATCH
+  AWAITING_TUTOR
+  AWAITING_STUDENT
+  CONFIRMED
+}
+
+enum SessionStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  passwordHash  String
+  name          String
+  role          Role
+  createdAt     DateTime        @default(now())
+  student       StudentProfile?
+  tutor         TutorProfile?
+  notifications Notification[]
+}
+
+model StudentProfile {
+  id       String            @id @default(cuid())
+  userId   String            @unique
+  user     User              @relation(fields: [userId], references: [id])
+  grade    String            @default("")
+  bio      String            @default("")
+  style    String?
+  requests TutoringRequest[]
+  sessions TutoringSession[]
+}
+
+model TutorProfile {
+  id              String            @id @default(cuid())
+  userId          String            @unique
+  user            User              @relation(fields: [userId], references: [id])
+  bio             String            @default("")
+  yearsExperience Int               @default(0)
+  rating          Float             @default(3)
+  style           String?
+  subjects        TutorSubject[]
+  availability    Availability[]
+  matches         Match[]
+  sessions        TutoringSession[]
+}
+
+model Subject {
+  id       String            @id @default(cuid())
+  name     String            @unique
+  tutors   TutorSubject[]
+  requests TutoringRequest[]
+  sessions TutoringSession[]
+}
+
+model TutorSubject {
+  id        String       @id @default(cuid())
+  tutorId   String
+  subjectId String
+  level     Level
+  tutor     TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  subject   Subject      @relation(fields: [subjectId], references: [id])
+
+  @@unique([tutorId, subjectId])
+}
+
+model Availability {
+  id        String       @id @default(cuid())
+  tutorId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  tutor     TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+}
+
+model TutoringRequest {
+  id            String           @id @default(cuid())
+  studentId     String
+  subjectId     String
+  startsAt      DateTime
+  description   String
+  prefStyle     String?
+  status        RequestStatus    @default(MATCHED)
+  proposedStart DateTime?
+  proposedBy    Role?
+  createdAt     DateTime         @default(now())
+  student       StudentProfile   @relation(fields: [studentId], references: [id])
+  subject       Subject          @relation(fields: [subjectId], references: [id])
+  matches       Match[]
+  session       TutoringSession?
+}
+
+model Match {
+  id          String          @id @default(cuid())
+  requestId   String
+  tutorId     String
+  score       Int
+  explanation String
+  rank        Int
+  selected    Boolean         @default(false)
+  rejected    Boolean         @default(false)
+  request     TutoringRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tutor       TutorProfile    @relation(fields: [tutorId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  requestId String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model TutoringSession {
+  id        String          @id @default(cuid())
+  requestId String          @unique
+  tutorId   String
+  studentId String
+  subjectId String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    SessionStatus   @default(CONFIRMED)
+  request   TutoringRequest @relation(fields: [requestId], references: [id])
+  tutor     TutorProfile    @relation(fields: [tutorId], references: [id])
+  student   StudentProfile  @relation(fields: [studentId], references: [id])
+  subject   Subject         @relation(fields: [subjectId], references: [id])
+}
